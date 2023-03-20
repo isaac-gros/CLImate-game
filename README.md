@@ -2,20 +2,16 @@
 Escape game in which your character can only execute actions with the help of UNIX commands.
 
 ## Installation
+Install dependencies for both directories.
 ```bash
-# Client side
-cd client
-yarn install
-yarn dev
+cd client/ && yarn install
+cd ../server/ && yarn install
 ```
 
+Then run Docker compose (omit the `--build` flag if you already ran this command)
 ```bash
-# Server side
-cd server
-yarn install
-yarn dev
-``` 
-A Dockerfile will be created to make things easier.
+docker compose up -d --build
+```
 
 ## Technical stack
 Client and server sides will both use Typescript.

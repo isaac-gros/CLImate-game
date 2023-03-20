@@ -1,0 +1,40 @@
+version: "3"
+
+services:
+  client:
+    build:
+      context: .
+    container_name: climate-game-client
+    working_dir: '/var/climate/client'
+    ports:
+      - "5173:5173"
+    volumes:
+      - "./client:/var/climate/client"
+    command: ["yarn", "dev"]
+
+  server:
+    build:
+      context: .
+    container_name: climate-game-server
+    working_dir: '/var/climate/server'
+    ports:
+      - "3000:3000"
+    expose:
+      - 3000
+    volumes:
+      - "./server:/var/climate/server"
+    command: ["yarn", "dev"]
+
+  database:
+    image: postgres
+    container_name: climate-game-database
+    ports:
+      - 5432:5432
+    expose:
+      - 5432
+    environment:
+      POSTGRES_USER: pguser
+      POSTGRES_PASSWORD: pgpassword
+      POSTGRES_DB: climate
+    volumes:
+     - './data/:/var/lib/postgresql/data'
