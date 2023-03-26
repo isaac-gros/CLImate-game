@@ -3,7 +3,6 @@ import express from 'express'
 import * as dotenv from "dotenv"
 
 dotenv.config({ path: __dirname +'/../.env' })
-
 const { APP_PORT } = process.env
 
 const app = express()
