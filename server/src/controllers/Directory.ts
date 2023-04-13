@@ -8,10 +8,32 @@ const prisma: PrismaClient = new PrismaClient()
  * @param {Request} req 
  * @param {Response} res 
  */
-const getAll = (req: Request, res: Response) => {
+const getAllByFileSystem = (req: Request, res: Response) => {
     try {
-        prisma.fileSystem.findMany().then(fileSystems => {
-            res.status(200).send({ data: fileSystems })
+        let fileSystemId = 0
+
+        // Try to convert param filesystemId to number
+        if (typeof(req.query.fileSystemId) === 'string') {
+            fileSystemId = Number.parseInt(req.query.fileSystemId)
+        }
+
+        // Send 404 if fileSystemId is not a valid parameter
+        if (Number.isNaN(fileSystemId) || fileSystemId === 0) {
+            res.status(400).send({ message: "Invalid fileSystemId parameter" })
+            return
+        }
+
+        // Find every directory depending on given fileSystemId
+        prisma.directory.findMany({
+            where: {
+                file_system_id: fileSystemId
+            }
+        }).then(fileSystems => {
+            if (fileSystems.length > 0) {
+                res.status(200).send({ data: fileSystems })
+            } else {
+                res.status(404).send({ message: "No records found with given parameters" })
+            }
         }).catch(err => {
             console.log(err)
             res.status(500).send({ message: err.meta.cause })
@@ -39,10 +61,11 @@ const getOneById = (req: Request, res: Response) => {
         } else {
 
             // Find the matching FileSystem
-            prisma.fileSystem.findUnique({
+            prisma.directory.findUnique({
                 where: { id: reqId },
                 include: {
-                    directories: true
+                    files: true,
+                    children_dir: true
                 }
             }).then(fileSystem => {
                 let status = (fileSystem === null) ? 404 : 200
@@ -69,18 +92,41 @@ const createOne = (req: Request, res: Response) => {
 
         // Request data
         let reqData = req.body
-        let requiredFields = ['name', 'enabled']
+
+        // Check if required fields are not missing
+        let missingFields = []
+        let submittedFields = Object.keys(reqData)
+        let requiredFields = ['file_system', 'name']
+        for (const key in requiredFields) {
+            if (!submittedFields.includes(requiredFields[key])) {
+                missingFields.push(requiredFields[key])
+            }
+        }
+
+        if (missingFields.length > 0) {
+            res.status(400).send({ message: `Missing fields: ${missingFields.join(', ')}`})
+            return
+        }
+
+        // Check if submitted fields are allowed
+        let allowedFields = ['file_system', 'name', 'parent_dir', 'permissions', 'is_spawn_point', 'width', 'height', 'files']
         for (const key in reqData) {
-            if (!requiredFields.includes(key)) {
+            if (!allowedFields.includes(key)) {
                 res.status(400).send({ message: `The field '${key}' is illegal` })
                 return
             }
         }
 
-        prisma.fileSystem.create({
+        prisma.directory.create({
             data: {
+                file_system: { connect: { id: reqData.file_system }},
                 name: reqData.name,
-                enabled: reqData.enabled,
+                parent_dir: { connect: { id: reqData.parent_dir ?? undefined }},
+                permissions: Number.parseInt(reqData.permissions) ?? undefined,
+                is_spawn_point: reqData.is_spawn_point ?? undefined,
+                width: reqData.width ?? undefined,
+                height: reqData.height ?? undefined,
+                files: reqData.files ?? undefined,
             }
         }).then(fileSystem => {
             let status = (fileSystem === null) ? 500 : 200
@@ -117,7 +163,7 @@ const updateOneById = (req: Request, res: Response) => {
             
             // Request data
             let reqData = req.body
-            let allowedFields = ['name', 'enabled']
+            let allowedFields = ['file_system', 'name', 'parent_dir', 'children_dir', 'permissions', 'is_spawn_point', 'width', 'height', 'files']
             for (const key in reqData) {
                 if (!allowedFields.includes(key)) {
                     res.status(400).send({ message: `The field '${key}' is not allowed` })
@@ -125,8 +171,10 @@ const updateOneById = (req: Request, res: Response) => {
                 }
             }
 
+            // TODO : Connect parent_dir and file_system 
+
             // Try to update the filesystem with given id
-            prisma.fileSystem.update({
+            prisma.directory.update({
                 where: { id: reqId },
                 data: reqData
             }).then(fileSystem => {
@@ -162,7 +210,7 @@ const deleteOneById = (req: Request, res: Response) => {
         if (Number.isNaN(reqId)) {
             res.status(400).send({ message: "Invalid :id parameter" })
         } else {
-            prisma.fileSystem.delete({
+            prisma.directory.delete({
                 where: { id: reqId }
             }).then(() => {
                 res.status(200).send({ message: `Successfully deleted FileSystem #${reqId}` })
@@ -178,7 +226,7 @@ const deleteOneById = (req: Request, res: Response) => {
 }
 
 export {
-    getAll,
+    getAllByFileSystem,
     getOneById,
     createOne,
     updateOneById,
