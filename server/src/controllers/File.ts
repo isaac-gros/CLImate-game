@@ -4,33 +4,33 @@ import { PrismaClient } from "@prisma/client"
 const prisma: PrismaClient = new PrismaClient()
 
 /**
- * Get all Directories
+ * Get all File
  * @param {Request} req 
  * @param {Response} res 
  */
-const getAllByFileSystem = (req: Request, res: Response) => {
+const getAllByDirectory = (req: Request, res: Response) => {
     try {
-        let fileSystemId = 0
+        let directoryId = 0
 
-        // Try to convert param filesystemId to number
-        if (typeof(req.query.fileSystemId) === 'string') {
-            fileSystemId = Number.parseInt(req.query.fileSystemId)
+        // Try to convert param directoryId to number
+        if (typeof(req.query.directoryId) === 'string') {
+            directoryId = Number.parseInt(req.query.directoryId)
         }
 
-        // Send 404 if fileSystemId is not a valid parameter
-        if (Number.isNaN(fileSystemId) || fileSystemId === 0) {
-            res.status(400).send({ message: "Invalid fileSystemId parameter" })
+        // Send 404 if directoryId is not a valid parameter
+        if (Number.isNaN(directoryId) || directoryId === 0) {
+            res.status(400).send({ message: "Invalid directoryId parameter" })
             return
         }
 
-        // Find every directory depending on given fileSystemId
-        prisma.directory.findMany({
+        // Find every directory depending on given directoryId
+        prisma.file.findMany({
             where: {
-                file_system_id: fileSystemId
+                directory_id: directoryId
             }
-        }).then(directories => {
-            if (directories.length > 0) {
-                res.status(200).send({ data: directories })
+        }).then(files => {
+            if (files.length > 0) {
+                res.status(200).send({ data: files })
             } else {
                 res.status(404).send({ message: "No records found with given parameters" })
             }
@@ -45,7 +45,7 @@ const getAllByFileSystem = (req: Request, res: Response) => {
 }
 
 /**
- * Get one Directory by Id
+ * Get one File by Id
  * @param {Request} req 
  * @param {Response} res 
  */
@@ -60,16 +60,15 @@ const getOneById = (req: Request, res: Response) => {
             res.status(400).send({ message: "Invalid :id parameter" })
         } else {
 
-            // Find the matching Directory
-            prisma.directory.findUnique({
+            // Find the matching file
+            prisma.file.findUnique({
                 where: { id: reqId },
                 include: {
-                    files: true,
-                    children_dir: true
+                    directory: true
                 }
-            }).then(directory => {
-                let status = (directory === null) ? 404 : 200
-                let data = (directory === null) ? { message: "No Directory found" } : { data: directory }
+            }).then(file => {
+                let status = (file === null) ? 404 : 200
+                let data = (file === null) ? { message: "No File found" } : { data: file }
                 res.status(status).send(data)
             }).catch(err => {
                 console.log(err)
@@ -83,7 +82,7 @@ const getOneById = (req: Request, res: Response) => {
 }
 
 /**
- * Create one Directory
+ * Create one File
  * @param {Request} req 
  * @param {Response} res 
  */
@@ -96,7 +95,7 @@ const createOne = (req: Request, res: Response) => {
         // Check if required fields are not missing
         let missingFields = []
         let submittedFields = Object.keys(reqData)
-        let requiredFields = ['file_system', 'name']
+        let requiredFields = ['directory', 'name', 'content']
         for (const key in requiredFields) {
             if (!submittedFields.includes(requiredFields[key])) {
                 missingFields.push(requiredFields[key])
@@ -109,7 +108,7 @@ const createOne = (req: Request, res: Response) => {
         }
 
         // Check if submitted fields are allowed
-        let allowedFields = [...requiredFields, 'parent_dir', 'permissions', 'is_spawn_point', 'width', 'height', 'files']
+        let allowedFields = [...requiredFields, 'permissions']
         for (const key in reqData) {
             if (!allowedFields.includes(key)) {
                 res.status(400).send({ message: `The field '${key}' is illegal` })
@@ -117,22 +116,18 @@ const createOne = (req: Request, res: Response) => {
             }
         }
 
-        prisma.directory.create({
+        prisma.file.create({
             data: {
-                file_system: { connect: { id: reqData.file_system }},
+                directory: { connect: { id: reqData.directory }},
                 name: reqData.name,
-                parent_dir: { connect: { id: reqData.parent_dir ?? undefined }},
+                content: reqData.content,
                 permissions: Number.parseInt(reqData.permissions) ?? undefined,
-                is_spawn_point: reqData.is_spawn_point ?? undefined,
-                width: reqData.width ?? undefined,
-                height: reqData.height ?? undefined,
-                files: reqData.files ?? undefined,
             }
-        }).then(directory => {
-            let status = (directory === null) ? 500 : 200
-            let data = (directory === null) ? { message : "An error occured" } : {
-                message: "Created Directory successfully",
-                data: directory
+        }).then(file => {
+            let status = (file === null) ? 500 : 200
+            let data = (file === null) ? { message : "An error occured" } : {
+                message: "Created File successfully",
+                data: file
             }
             res.status(status).send(data)
         }).catch(err => {
@@ -146,7 +141,7 @@ const createOne = (req: Request, res: Response) => {
 }
 
 /**
- * Update one Directory
+ * Update one File
  * @param {Request} req 
  * @param {Response} res 
  */
@@ -163,7 +158,7 @@ const updateOneById = (req: Request, res: Response) => {
             
             // Request data
             let reqData = req.body
-            let allowedFields = ['file_system', 'name', 'parent_dir', 'children_dir', 'permissions', 'is_spawn_point', 'width', 'height', 'files']
+            let allowedFields = ['content', 'name', 'permissions', 'directory']
             for (const key in reqData) {
                 if (!allowedFields.includes(key)) {
                     res.status(400).send({ message: `The field '${key}' is not allowed` })
@@ -171,17 +166,15 @@ const updateOneById = (req: Request, res: Response) => {
                 }
             }
 
-            // TODO : Connect parent_dir and file_system 
-
-            // Try to update the directory with given id
-            prisma.directory.update({
+            // Try to update the File with given id
+            prisma.file.update({
                 where: { id: reqId },
                 data: reqData
-            }).then(directory => {
-                let status = (directory === null) ? 500 : 200
-                let data = (directory === null) ? { message : "An error occured" } : {
-                    message: `Updated Directory #${reqId} successfully`,
-                    data: directory
+            }).then(file => {
+                let status = (file === null) ? 500 : 200
+                let data = (file === null) ? { message : "An error occured" } : {
+                    message: `Updated File #${reqId} successfully`,
+                    data: file
                 }
                 res.status(status).send(data)
             }).catch(err => {
@@ -196,7 +189,7 @@ const updateOneById = (req: Request, res: Response) => {
 }
 
 /**
- * Delete one Directory
+ * Delete one File
  * @param {Request} req 
  * @param {Response} res 
  */
@@ -210,10 +203,10 @@ const deleteOneById = (req: Request, res: Response) => {
         if (Number.isNaN(reqId)) {
             res.status(400).send({ message: "Invalid :id parameter" })
         } else {
-            prisma.directory.delete({
+            prisma.file.delete({
                 where: { id: reqId }
             }).then(() => {
-                res.status(200).send({ message: `Successfully deleted Directory #${reqId}` })
+                res.status(200).send({ message: `Successfully deleted File #${reqId}` })
             }).catch(err => {
                 console.log(err)
                 res.status(500).send({ message: err.meta.cause })
@@ -226,7 +219,7 @@ const deleteOneById = (req: Request, res: Response) => {
 }
 
 export {
-    getAllByFileSystem,
+    getAllByDirectory,
     getOneById,
     createOne,
     updateOneById,
